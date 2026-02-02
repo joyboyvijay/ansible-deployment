@@ -1,18 +1,16 @@
 ---
-- name: Deploy static website with directory listing (override index)
-  hosts: webservers
+- name: Deploy static website to Apache (serve index.html)
+  # Make sure this matches your inventory group name, e.g. [web]
+  hosts: web
   become: true
 
   vars:
     web_root: /var/www/html
-
-    # Fallback for people who run playbook outside Jenkins
+    # Fallback logic is fine; keeping it
     workspace_env: "{{ lookup('env', 'WORKSPACE') | default('', true) }}"
     app_src_fallback: >-
       {{ (workspace_env | length > 0)
          | ternary(workspace_env ~ '/app', playbook_dir ~ '/../app') }}
-
-    # Use passed app_src if provided, otherwise fallback
     app_src_final: "{{ app_src | default(app_src_fallback, true) }}"
 
   tasks:
@@ -26,48 +24,25 @@
         name: apache2
         state: present
 
-    - name: Ensure Apache is running and enabled
+    - name: Ensure Apache is started and enabled
       service:
         name: apache2
         state: started
         enabled: yes
 
-    - name: Configure Apache directory listing for web root
-      copy:
-        dest: /etc/apache2/conf-available/dir-listing.conf
-        content: |
-          <Directory {{ web_root }}>
-              Options +Indexes
-              AllowOverride None
-              Require all granted
-              DirectoryIndex disabled
-          </Directory>
-      notify: Reload Apache
-
-    - name: Enable directory listing config
-      command: a2enconf dir-listing
+    # 🔴 REMOVE any previous custom directory-listing config that disables DirectoryIndex
+    - name: Disable custom dir-listing config if enabled
+      command: a2disconf dir-listing
       args:
-        creates: /etc/apache2/conf-enabled/dir-listing.conf
+        removes: /etc/apache2/conf-enabled/dir-listing.conf
       notify: Reload Apache
+      ignore_errors: true
 
-    # Validate source path on controller ONCE (not per host)
-    - name: Validate app_src exists on controller
-      delegate_to: localhost
-      become: false
-      run_once: true
-      stat:
-        path: "{{ app_src_final }}"
-      register: app_src_stat
-
-    - name: Stop if app_src path is invalid
-      delegate_to: localhost
-      become: false
-      run_once: true
-      fail:
-        msg: >
-          Source folder not found on controller: {{ app_src_final }}.
-          Ensure Jenkins clones app into WORKSPACE/app or pass -e app_src=...
-      when: not app_src_stat.stat.exists
+    - name: Remove custom dir-listing config file if present
+      file:
+        path: /etc/apache2/conf-available/dir-listing.conf
+        state: absent
+      notify: Reload Apache
 
     - name: Ensure web root exists
       file:
@@ -77,13 +52,25 @@
         group: www-data
         mode: "0755"
 
-    - name: Deploy website files to web servers
+    # ✅ Copy only the CONTENTS of the repo to /var/www/html
+    - name: Deploy website files
       copy:
         src: "{{ app_src_final }}/"
         dest: "{{ web_root }}/"
         owner: www-data
         group: www-data
         mode: "0644"
+        directory_mode: "0755"
+      notify: Reload Apache
+
+    # (Optional) If you want to be 100% sure a default vendor index isn't taking over
+    # Commented out by default—usually not needed if you copy your own index.html
+    # - name: Remove default Apache placeholder index if it exists
+    #   file:
+    #     path: "{{ web_root }}/index.html"
+    #     state: absent
+    #   when: "'Apache2 Ubuntu Default Page' in lookup('file', web_root ~ '/index.html') | default('')"
+    #   notify: Reload Apache
 
   handlers:
     - name: Reload Apache
