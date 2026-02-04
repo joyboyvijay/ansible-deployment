@@ -10,7 +10,6 @@
     web_group: "{{ web_user }}"
 
   tasks:
-
     - name: Ensure Apache is installed (Ubuntu/Debian)
       ansible.builtin.apt:
         name: apache2
