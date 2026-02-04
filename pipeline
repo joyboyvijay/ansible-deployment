@@ -13,7 +13,7 @@ pipeline {
         // IMPORTANT: app repo goes into WORKSPACE/app
         dir('app') {
           git branch: 'main',
-              credentialsId: 'vijayid',
+              credentialsId: 'vijaypassid',
               url: 'https://github.com/joyboyvijay/webfiles.git'
         }
       }
@@ -24,7 +24,7 @@ pipeline {
         // IMPORTANT: deploy repo goes into WORKSPACE/deploy-config
         dir('ansible-deployment') {
           git branch: 'main',
-              credentialsId: 'vijayid',
+              credentialsId: 'vijaypassid',
               url: 'https://github.com/joyboyvijay/ansible-deployment.git'
         }
       }
