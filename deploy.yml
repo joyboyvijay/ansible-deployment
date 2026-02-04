@@ -1,79 +1,40 @@
 ---
-- name: Deploy static website to Apache (serve index.html)
-  # Make sure this matches your inventory group name, e.g. [web]
-  hosts: web
-  become: true
-
-  vars:
-    web_root: /var/www/html
-    # Fallback logic is fine; keeping it
-    workspace_env: "{{ lookup('env', 'WORKSPACE') | default('', true) }}"
-    app_src_fallback: >-
-      {{ (workspace_env | length > 0)
-         | ternary(workspace_env ~ '/app', playbook_dir ~ '/../app') }}
-    app_src_final: "{{ app_src | default(app_src_fallback, true) }}"
-
+- name: Deploy static website to web servers
+  hosts: webservers
+  become: yes
+  gather_facts: yes
+ 
   tasks:
-    - name: Update apt cache
-      apt:
-        update_cache: yes
-        cache_valid_time: 3600
-
-    - name: Install Apache
-      apt:
+ 
+    - name: Ensure Apache is installed (Ubuntu/Debian)
+      ansible.builtin.apt:
         name: apache2
         state: present
-
-    - name: Ensure Apache is started and enabled
-      service:
-        name: apache2
-        state: started
-        enabled: yes
-
-    # 🔴 REMOVE any previous custom directory-listing config that disables DirectoryIndex
-    - name: Disable custom dir-listing config if enabled
-      command: a2disconf dir-listing
-      args:
-        removes: /etc/apache2/conf-enabled/dir-listing.conf
-      notify: Reload Apache
-      ignore_errors: true
-
-    - name: Remove custom dir-listing config file if present
-      file:
-        path: /etc/apache2/conf-available/dir-listing.conf
-        state: absent
-      notify: Reload Apache
-
-    - name: Ensure web root exists
-      file:
-        path: "{{ web_root }}"
-        state: directory
-        owner: www-data
-        group: www-data
-        mode: "0755"
-
-    # ✅ Copy only the CONTENTS of the repo to /var/www/html
-    - name: Deploy website files
-      copy:
-        src: "{{ app_src_final }}/"
-        dest: "{{ web_root }}/"
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+ 
+    - name: Ensure Apache (httpd) is installed (Amazon/RHEL)
+      ansible.builtin.yum:
+        name: httpd
+        state: present
+      when: ansible_os_family == "RedHat" or ansible_distribution == "Amazon"
+ 
+    - name: Copy index.html from web-src to server
+      ansible.builtin.copy:
+        src: "web-src/index.html"
+        dest: "/var/www/html/index.html"
         owner: www-data
         group: www-data
         mode: "0644"
-        directory_mode: "0755"
-      notify: Reload Apache
-
-    # (Optional) If you want to be 100% sure a default vendor index isn't taking over
-    # Commented out by default—usually not needed if you copy your own index.html
-    # - name: Remove default Apache placeholder index if it exists
-    #   file:
-    #     path: "{{ web_root }}/index.html"
-    #     state: absent
-    #   when: "'Apache2 Ubuntu Default Page' in lookup('file', web_root ~ '/index.html') | default('')"
-    #   notify: Reload Apache
-
-  handlers:
-    - name: Reload Apache
-      service:
+ 
+    - name: Restart Apache on Debian/Ubuntu
+      ansible.builtin.service:
         name: apache2
-        state: reloaded
+        state: restarted
+      when: ansible_os_family == "Debian"
+ 
+    - name: Restart Apache on Amazon/RHEL
+      ansible.builtin.service:
+        name: httpd
+        state: restarted
+      when: ansible_os_family == "RedHat" or ansible_distribution == "Amazon"
