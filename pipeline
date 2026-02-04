@@ -1,12 +1,16 @@
 pipeline {
     agent any
- 
+
     tools {
         ansible 'ansible'
     }
- 
+
+    environment {
+        ANSIBLE_HOST_KEY_CHECKING = 'False'
+    }
+
     stages {
- 
+
         stage('Checkout Ansible Repo') {
             steps {
                 git branch: 'main',
@@ -14,7 +18,7 @@ pipeline {
                     url: 'https://github.com/joyboyvijay/ansible-deployment.git'
             }
         }
- 
+
         stage('Checkout Website Repo') {
             steps {
                 dir('web-src') {
@@ -24,25 +28,26 @@ pipeline {
                 }
             }
         }
- 
+
         stage('Deploy with Ansible') {
             steps {
                 withCredentials([sshUserPrivateKey(
                     credentialsId: 'vijaysshid',
                     keyFileVariable: 'SSH_KEY'
                 )]) {
- 
-                    echo 'Deploying to multiple web servers using Ansible from two repos...'
- 
-                    sh 'cp ${SSH_KEY} /tmp/ssh_key'
-                    sh 'chmod 600 /tmp/ssh_key'
- 
+
+                    sh '''
+                      cp $SSH_KEY /tmp/ssh_key
+                      chmod 600 /tmp/ssh_key
+                    '''
+
                     ansiblePlaybook(
                         playbook: 'deploy.yml',
                         inventory: 'inventory/hosts.ini',
+                        extras: '-e web_src=web-src --private-key /tmp/ssh_key',
                         colorized: true
                     )
- 
+
                     sh 'rm -f /tmp/ssh_key'
                 }
             }
