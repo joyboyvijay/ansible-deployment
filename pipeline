@@ -39,7 +39,7 @@ pipeline {
                 // withCredentials([string(credentialsId: 'becomePassId', variable: 'BECOME_PASS')]) {
                 //     ansiblePlaybook(
                 //         playbook: 'deploy.yml',
-                //         inventory: 'hosts.ini',  // change to 'inventory/hosts.ini' if that's your path
+                //         inventory: 'inventory/hosts.ini',  // change to 'inventory/hosts.ini' if that's your path
                 //         colorized: true,
                 //         credentialsId: 'vijaysshid',
                 //         extraVars: [
