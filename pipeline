@@ -1,50 +1,51 @@
 pipeline {
-  agent any
-
-  options {
-    timestamps()
-    disableConcurrentBuilds()
-  }
-
-  stages {
-
-    stage('Checkout App Repo') {
-      steps {
-        // IMPORTANT: app repo goes into WORKSPACE/app
-        dir('app') {
-          git branch: 'main',
-              credentialsId: 'vijaypassid',
-              url: 'https://github.com/joyboyvijay/webfiles.git'
+    agent any
+ 
+    tools {
+        ansible 'ansible'
+    }
+ 
+    stages {
+ 
+        stage('Checkout Ansible Repo') {
+            steps {
+                git branch: 'main',
+                    credentialsId: 'vijaypassid',
+                    url: 'https://github.com/joyboyvijay/ansible-deployment.git'
+            }
         }
-      }
-    }
-
-    stage('Checkout Deploy Repo (Ansible)') {
-      steps {
-        // IMPORTANT: deploy repo goes into WORKSPACE/deploy-config
-        dir('ansible-deployment') {
-          git branch: 'main',
-              credentialsId: 'vijaypassid',
-              url: 'https://github.com/joyboyvijay/ansible-deployment.git'
+ 
+        stage('Checkout Website Repo') {
+            steps {
+                dir('web-src') {
+                    git branch: 'main',
+                        credentialsId: 'vijaypassid',
+                        url: 'https://github.com/joyboyvijay/webfiles.git'
+                }
+            }
         }
-      }
+ 
+        stage('Deploy with Ansible') {
+            steps {
+                withCredentials([sshUserPrivateKey(
+                    credentialsId: 'vijaysshid',
+                    keyFileVariable: 'SSH_KEY'
+                )]) {
+ 
+                    echo 'Deploying to multiple web servers using Ansible from two repos...'
+ 
+                    sh 'cp ${SSH_KEY} /tmp/ssh_key'
+                    sh 'chmod 600 /tmp/ssh_key'
+ 
+                    ansiblePlaybook(
+                        playbook: 'deploy.yml',
+                        inventory: 'inventory/hosts.ini',
+                        colorized: true
+                    )
+ 
+                    sh 'rm -f /tmp/ssh_key'
+                }
+            }
+        }
     }
-
-    stage('Deploy with Ansible') {
-      steps {
-        echo "Deploying static files to all web servers using Ansible..."
-
-        // Jenkins Ansible plugin supports passing variables via extraVars [1](https://www.jenkins.io/doc/pipeline/steps/ansible/)
-       ansiblePlaybook(
-  playbook: 'ansible-deployment/deploy.yml',
-  inventory: 'ansible-deployment/inventory/hosts.ini',
-  credentialsId: 'vijaysshid',
-  disableHostKeyChecking: true,
-  extraVars: [
-    app_src: "${env.WORKSPACE}/app"
-  ]
-)
-      }
-    }
-  }
 }
