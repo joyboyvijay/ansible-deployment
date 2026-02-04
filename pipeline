@@ -1,0 +1,50 @@
+pipeline {
+  agent any
+
+  options {
+    timestamps()
+    disableConcurrentBuilds()
+  }
+
+  stages {
+
+    stage('Checkout App Repo') {
+      steps {
+        // IMPORTANT: app repo goes into WORKSPACE/app
+        dir('app') {
+          git branch: 'main',
+              credentialsId: 'vijayid',
+              url: 'https://github.com/joyboyvijay/webfiles.git'
+        }
+      }
+    }
+
+    stage('Checkout Deploy Repo (Ansible)') {
+      steps {
+        // IMPORTANT: deploy repo goes into WORKSPACE/deploy-config
+        dir('ansible-deployment') {
+          git branch: 'main',
+              credentialsId: 'vijayid',
+              url: 'https://github.com/joyboyvijay/ansible-deployment.git'
+        }
+      }
+    }
+
+    stage('Deploy with Ansible') {
+      steps {
+        echo "Deploying static files to all web servers using Ansible..."
+
+        // Jenkins Ansible plugin supports passing variables via extraVars [1](https://www.jenkins.io/doc/pipeline/steps/ansible/)
+       ansiblePlaybook(
+  playbook: 'ansible-deployment/deploy.yml',
+  inventory: 'ansible-deployment/inventory/hosts.ini',
+  credentialsId: 'vijaysshid',
+  disableHostKeyChecking: true,
+  extraVars: [
+    app_src: "${env.WORKSPACE}/app"
+  ]
+)
+      }
+    }
+  }
+}
