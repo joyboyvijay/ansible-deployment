@@ -1,18 +1,17 @@
 pipeline {
     agent any
 
-    tools {
-        ansible 'ansible'
-    }
+    // Remove the invalid tools block
+    // tools { ansible 'ansible' }  // ❌
 
     environment {
         ANSIBLE_HOST_KEY_CHECKING = 'False'
     }
 
     stages {
-
         stage('Checkout Ansible Repo') {
             steps {
+                deleteDir()
                 git branch: 'main',
                     credentialsId: 'vijaypassid',
                     url: 'https://github.com/joyboyvijay/ansible-deployment.git'
@@ -31,25 +30,17 @@ pipeline {
 
         stage('Deploy with Ansible') {
             steps {
-                withCredentials([sshUserPrivateKey(
-                    credentialsId: 'vijaysshid',
-                    keyFileVariable: 'SSH_KEY'
-                )]) {
-
-                    sh '''
-                      cp $SSH_KEY /tmp/ssh_key
-                      chmod 600 /tmp/ssh_key
-                    '''
-
-                    ansiblePlaybook(
-                        playbook: 'deploy.yml',
-                        inventory: 'inventory/hosts.ini',
-                        extras: '-e web_src=web-src --private-key /tmp/ssh_key',
-                        colorized: true
-                    )
-
-                    sh 'rm -f /tmp/ssh_key'
-                }
+                // Use the Ansible plugin's credentials handling
+                ansiblePlaybook(
+                    playbook: 'deploy.yml',
+                    inventory: 'hosts.ini',                // <-- Use the correct path. If it's 'inventory/hosts.ini', change it accordingly.
+                    colorized: true,
+                    credentialsId: 'vijaysshid',           // <-- Jenkins SSH key for remote hosts
+                    extraVars: [
+                        web_src: "${WORKSPACE}/web-src"     // <-- Pass absolute path so copy can find the file
+                    ]
+                    // You no longer need 'extras' or --private-key
+                )
             }
         }
     }
