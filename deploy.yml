@@ -5,9 +5,7 @@
   gather_facts: yes
 
   vars:
-    # Use the variable if provided, otherwise default to 'web-src'
     web_src: "{{ web_src | default('web-src') }}"
-    # Owner/group based on OS family
     web_user: "{{ 'www-data' if ansible_os_family == 'Debian' else 'apache' }}"
     web_group: "{{ web_user }}"
 
