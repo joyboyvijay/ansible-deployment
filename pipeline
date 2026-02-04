@@ -1,9 +1,6 @@
 pipeline {
     agent any
 
-    // Remove the invalid tools block
-    // tools { ansible 'ansible' }  // ❌
-
     environment {
         ANSIBLE_HOST_KEY_CHECKING = 'False'
     }
@@ -11,6 +8,7 @@ pipeline {
     stages {
         stage('Checkout Ansible Repo') {
             steps {
+                // Clean workspace to avoid path conflicts
                 deleteDir()
                 git branch: 'main',
                     credentialsId: 'vijaypassid',
@@ -28,20 +26,48 @@ pipeline {
             }
         }
 
+        stage('Sanity: Show Workspace') {
+            steps {
+                sh 'pwd && echo "--- ROOT ---" && ls -la && echo "--- web-src ---" && ls -la web-src || true'
+                sh 'ansible --version || true'
+            }
+        }
+
         stage('Deploy with Ansible') {
             steps {
-                // Use the Ansible plugin's credentials handling
+                // If your ubuntu user needs a sudo password, uncomment and configure:
+                // withCredentials([string(credentialsId: 'becomePassId', variable: 'BECOME_PASS')]) {
+                //     ansiblePlaybook(
+                //         playbook: 'deploy.yml',
+                //         inventory: 'hosts.ini',  // change to 'inventory/hosts.ini' if that's your path
+                //         colorized: true,
+                //         credentialsId: 'vijaysshid',
+                //         extraVars: [
+                //             web_src: "${WORKSPACE}/web-src",
+                //             ansible_become_password: "${BECOME_PASS}"
+                //         ],
+                //         extras: '-vvv'
+                //     )
+                // }
+
+                // Default: passwordless sudo (recommended)
                 ansiblePlaybook(
                     playbook: 'deploy.yml',
-                    inventory: 'hosts.ini',                // <-- Use the correct path. If it's 'inventory/hosts.ini', change it accordingly.
+                    inventory: 'hosts.ini',            // <-- adjust if yours is 'inventory/hosts.ini'
                     colorized: true,
-                    credentialsId: 'vijaysshid',           // <-- Jenkins SSH key for remote hosts
+                    credentialsId: 'vijaysshid',       // SSH key for the target hosts
                     extraVars: [
-                        web_src: "${WORKSPACE}/web-src"     // <-- Pass absolute path so copy can find the file
-                    ]
-                    // You no longer need 'extras' or --private-key
+                        web_src: "${WORKSPACE}/web-src"
+                    ],
+                    extras: '-vvv'                     // extra verbosity for debugging
                 )
             }
+        }
+    }
+
+    post {
+        always {
+            archiveArtifacts artifacts: '**/ansible.log', onlyIfSuccessful: false
         }
     }
 }
