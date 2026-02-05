@@ -5,6 +5,7 @@
   gather_facts: yes
 
   vars:
+    # Directly assign a default if `web_src` is undefined, without recursion.
     web_src: "{{ web_src | default('web-src') }}"
     web_user: "{{ 'www-data' if ansible_os_family == 'Debian' else 'apache' }}"
     web_group: "{{ web_user }}"
