@@ -36,6 +36,12 @@
       copy:
         dest: /etc/apache2/conf-available/dir-listing.conf
         content: |
+          <Directory {{ web_root }}>
+              Options +Indexes
+              AllowOverride None
+              Require all granted
+              DirectoryIndex disabled
+          </Directory>
       notify: Reload Apache
 
     - name: Enable directory listing config
@@ -82,4 +88,3 @@
       service:
         name: apache2
         state: reloaded
-
